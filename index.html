@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="UTF-8">
+	<title>Document</title>
+</head>
+<body>
+	<a class="btn" id="downloadButton" download="a.zip">下载</a>
+	<script type="text/javascript" src="./lib/zip.js"></script>
+	<script type="text/javascript" src="./lib/zip-ext.js"></script>
+	<script type="text/javascript" src="./lib/image-to-blob.js"></script>
+	<script type="text/javascript">
+		zip.workerScriptsPath = "/zip/lib/";
+
+		var a = {a: 'a',b: 'b'};
+		var blob = new Blob([JSON.stringify(a, null, 2)])
+		var imgBlob = ''
+
+		imageToBlob( './79.jpg', function( err, uri ) { 
+		    imgBlob = uri
+		} );
+		
+		function zipBlob(filename, blob, callback) {
+		  // use a zip.BlobWriter object to write zipped data into a Blob object
+		  zip.createWriter(new zip.BlobWriter("application/zip"), function(zipWriter) {
+		    // use a BlobReader object to read the data stored into blob variable
+		    zipWriter.add(filename, new zip.BlobReader(blob), function() {
+		      // close the writer and calls callback function
+		      console.log(zipWriter)
+		      zipWriter.close(callback);
+		    });
+		  }, onerror);
+		}
+		
+
+		var downloadButton = document.getElementById('downloadButton')
+
+		setTimeout(function () {
+			zipBlob('aa/1.jpg', imgBlob, function (blob) {
+				console.log(blob)
+				var blobUrl = window.URL.createObjectURL(blob)
+				console.log(blobUrl)
+				downloadButton.href = blobUrl;
+			})
+		}, 2000)
+		
+
+		// zip.createReader(new zip.BlobReader(blob), function(reader) {
+		//   // get all entries from the zip
+		//   reader.getEntries(function(entries) {
+		//     if (entries.length) {
+
+		//       // get first entry content as text
+		//       entries[0].getData(new zip.TextWriter(), function(text) {
+		//         // text contains the entry data as a String
+		//         console.log(text);
+
+		//         // close the zip reader
+		//         reader.close(function() {
+		//           // onclose callback
+		//         });
+
+		//       }, function(current, total) {
+		//         // onprogress callback
+		//       });
+		//     }
+		//   });
+		// }, function(error) {
+		//   // onerror callback
+		// });
+		
+
+	</script>
+</body>
+</html>

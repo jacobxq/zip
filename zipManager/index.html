@@ -1,0 +1,41 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset='utf-8'>
+<title>Zip manager</title>
+<link rel="stylesheet" href="../css/default.css">
+<link rel="stylesheet" href="./zipManager.css">
+<link href='https://fonts.googleapis.com/css?family=Maven+Pro|Muli|Droid+Sans+Mono|Istok+Web' rel='stylesheet' type='text/css'>
+</head>
+
+<body>
+	<a href="https://github.com/gildas-lormeau/zip.js"><img style="position: absolute; top: 0; right: 0; border: 0;"
+		src="https://s3.amazonaws.com/github/ribbons/forkme_right_darkblue_121621.png" alt="Fork me on GitHub" /></a>
+	<div id="container">
+		<h1>
+			<a href="../">zip.js</a> <span class="small"></span>
+		</h1>
+
+		<div class="description">
+			A JavaScript library to zip and unzip files
+			<hr>
+		</div>
+		<div class="directories">
+			<div id="tree" class="tree">
+			</div>			
+		</div>
+
+		<div class="files">
+			<ul id="listing" class="listing"></ul>
+		</div>
+		<progress id="progress-export-zip" class="progress-export-zip"></progress>
+
+	</div>
+	<script type="text/javascript" src="../lib/zip.js"></script>
+	<script type="text/javascript" src="../lib/zip-fs.js"></script>
+	<script type="text/javascript" src="../lib/mime-types.js"></script>
+	<script type="text/javascript" src="./zipManager.js"></script>
+	
+</body>
+</html>
