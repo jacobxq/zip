@@ -1,0 +1,386 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <title>上传</title>
+    <link rel="stylesheet" href="../css/default.css">
+    <style type="text/css">
+    #container {
+        width: 700px;
+    }
+
+    #demo-container li {
+        margin-bottom: 1em;
+        min-height: 40px;
+    }
+
+    #file-list {
+        padding-left: 10px;
+        padding-top: 5px;
+        font-family: 'Droid Sans Mono', courier;
+        font-size: 12pt;
+        overflow: hidden;
+        white-space: nowrap;
+        margin-top: 14px;
+        padding: 4px;
+        border: solid 1px #AACFE4;
+        border-radius: 5px;
+        min-height: 28px;
+        background-color: #eee;
+        box-shadow: 0px 0px 10px #ccc;
+    }
+
+    #file-list li {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        position: relative;
+        font-size: 11pt;
+        margin: .5em;
+        min-height: 28px;
+    }
+
+    .form-label {
+        width: 270px;
+        display: inline-block;
+        font-size: 12pt;
+    }
+
+    #demo-container {
+        margin-right: 50px;
+    }
+
+    input[type=text] {
+        height: 21px;
+    }
+
+    input[type=text],
+    select {
+        font-size: 12pt;
+        padding: 4px;
+        border: solid 1px #AACFE4;
+        width: 200px;
+        border-radius: 5px;
+        text-align: center;
+        box-shadow: 0px 0px 10px #ccc;
+    }
+
+    select {
+        width: 212px;
+    }
+
+    input[type=file] {
+        color: transparent;
+        font-size: 12pt;
+    }
+
+    button,
+    #download-button {
+        margin: 0px;
+        font-size: 12pt;
+        padding: 4px;
+        border: solid 1px #AACFE4;
+        width: 209px;
+        border-radius: 5px;
+        box-shadow: 0px 0px 10px #ccc;
+    }
+
+    input[type=file]::-webkit-file-upload-button {
+        margin: 0px;
+        font-size: 12pt;
+        padding: 4px;
+        border: solid 1px #AACFE4;
+        width: 209px;
+        height: 31px;
+        border-radius: 5px;
+        box-shadow: 0px 0px 10px #ccc;
+    }
+
+    #download-button {
+        height: 21px;
+        width: 200px;
+        display: inline-block;
+        text-align: center;
+        text-decoration: none;
+        cursor: default;
+        color: black;
+    }
+
+    progress {
+        position: absolute;
+        right: 0px;
+        top: 1px;
+        opacity: .7;
+        width: 80px;
+    }
+    </style>
+</head>
+
+<body>
+    <div id="container">
+        <h1>
+            <a href="../">zip.js</a>
+            <span class="small"></span>
+        </h1>
+        <div class="description">
+            A JavaScript library to zip and unzip files
+            <hr>
+        </div>
+        <h2>Read a zip file demo</h2>
+        <ol id="demo-container">
+            <li>
+                <label>
+                    <span class="form-label">choose a zip file</span>
+                    <input type="file" accept="application/zip" id="file-input">
+                </label>
+            </li>
+            <li>
+                <span class="form-label">show zip content</span>
+                <ul id="file-list">
+                </ul>
+            </li>
+        </ol>
+    </div>
+    <script type="text/javascript" src="../lib/zip.js"></script>
+    <script type="text/javascript" src="../lib/localforage.js"></script>
+    <script type="text/javascript">
+    zip.workerScriptsPath = "/zip/lib/";
+
+    var fileInput = document.getElementById("file-input");
+    var fileList = document.getElementById("file-list");
+
+    fileInput.addEventListener('change', function () {
+        loadFiles.init(fileInput.files[0])
+    }, false)
+
+	/*
+	* 加载zip文件
+	 */
+    var loadFiles = {
+        num: 0,
+        imgType: 'jpg,jpeg,png,git,bmp', // 图片的可能类型
+        audioType: 'mp3,ogg,m4a,mp4', // 音频的可能类型
+        init(file) {
+            this.handleEntries(file)
+        },
+        handleEntries(files) {
+            let that = this
+            this._getEntries(files, function (entries) {
+                entries.forEach((entry, index) => {
+                    let type = entry.filename.split('.')
+                    type = type[type.length - 1]
+                    let li = document.createElement("li");
+                    li.textContent = entry.filename;
+					
+                    if (type == 'json' || type == 'c3proj') { // 处理json文件
+                        entry.getData(new zip.TextWriter(), function (text) {
+                            // 把数据存储在trimProject对象里
+                            trimProject.globalObj[entry.filename] = JSON.parse(text)
+                            that._loadEnd(entries.length)
+                        }, function (current, total) {
+                            // onprogress callback
+                        });
+                    } else if (that.imgType.indexOf(type) > -1) { // 处理图片文件
+                        entry.getData(new zip.BlobWriter(), function (blob) {
+                            trimProject.globalObj[entry.filename] = blob
+                            that._loadEnd(entries.length)
+                        });
+                    } else if (that.audioType.indexOf(type) > -1) { // 处理音频文件
+                        entry.getData(new zip.BlobWriter(), function (blob) {
+                            trimProject.globalObj[entry.filename] = blob
+                            that._loadEnd(entries.length)
+                        });
+                    } else { // 预留，处理其他
+                        that._loadEnd(entries.length)
+                    }
+
+                    fileList.appendChild(li)
+                })
+            })
+        },
+        // 判断文件是否全部加载
+        _loadEnd(length) {
+            this.num = this.num + 1
+            if (this.num >= length) {
+                console.log('loadFiles finished')
+                trimProject.init()
+            }
+        },
+        _getEntries(file, onend) {
+            zip.createReader(new zip.BlobReader(file), function (zipReader) {
+                zipReader.getEntries(onend);
+            }, this._onerror);
+        },
+        _onerror(message) {
+            alert(message);
+        }
+    }
+
+	/*
+	* 把数据都整合到一个object，并使用localforage存储
+	 */
+    var trimProject = {
+        globalObj: {},
+        init() {
+            let project = this.globalObj['project.c3proj'] || this.globalObj['project.json']
+            project.objectTypes = this.handleObjectTypes(project.objectTypes)
+            project.containers = this.handleContainers(project.containers)
+            project.families = this.handleFamilies(project.families)
+            project.layouts = this.handleLayouts(project.layouts)
+            project.eventSheets = this.handleEventSheets(project.eventSheets)
+            project.rootFileFolders = this.handleRootFileFolders(project.rootFileFolders)
+            // console.log(JSON.stringify(project, null, 2))
+            localforage.setItem('project', project).then(function(project) {
+                console.log(project);
+                console.log('saved project')
+            }).catch(function(err) {
+                console.log(err);
+            });
+        },
+		// 处理objectTypes文件
+        handleObjectTypes(objectTypes) {
+            let items = []
+            objectTypes.items.forEach((item, index) => {
+                let path = 'objectTypes\\' + item.toLowerCase() + '.json'
+                items[index] = this.handleImage(this.globalObj[path])
+            })
+            objectTypes.subfolders.forEach((sbuItem) => {
+                this.handleObjectTypes(sbuItem)
+            })
+            objectTypes.items = items
+            return objectTypes
+        },
+		// 处理containers文件
+        handleContainers(containers) {
+            let items = []
+            containers.forEach((container, containerIndex) => {
+                let arr = []
+                container.members.forEach((item, index) => {
+                    let path = 'objectTypes\\' + item.toLowerCase() + '.json'
+                    arr[index] = this.handleImage(this.globalObj[path])
+                })
+                container.members = arr
+                items[containerIndex] = container
+            })
+
+            containers = items
+            return containers
+        },
+		// 处理families文件
+        handleFamilies(families) {
+            let items = []
+            families.items.forEach((item, index) => {
+                let path = 'families\\' + item.toLowerCase() + '.json'
+                items[index] = this.handleFamilyObj(this.globalObj[path])
+            })
+            families.subfolders.forEach((subItem) => {
+                this.handleFamilies(subItem)
+            })
+            families.items = items
+            return families
+        },
+		// 处理families下的objecjTypes文件
+        handleFamilyObj(obj) {
+            let items = []
+            console.log(obj)
+            obj.members.forEach((item, index) => {
+                let path = 'objectTypes\\' + item.toLowerCase() + '.json'
+                items[index] = this.handleImage(this.globalObj[path])
+            })
+            obj.members = items
+            return obj
+        },
+		// 处理layouts文件
+        handleLayouts(layouts) {
+            let items = []
+            layouts.items.forEach((item, index) => {
+                let path = 'layouts\\' + item.toLowerCase() + '.json'
+                items[index] = this.globalObj[path]
+            })
+            layouts.subfolders.forEach((subItem) => {
+                this.handleLayouts(subItem)
+            })
+            layouts.items = items
+            return layouts
+        },
+		// 处理eventsSheet文件
+        handleEventSheets(eventSheets) {
+            let items = []
+            eventSheets.items.forEach((item, index) => {
+                let path = 'eventSheets\\' + item.toLowerCase() + '.json'
+                items[index] = this.globalObj[path]
+            })
+            eventSheets.subfolders.forEach((subItem) => {
+                this.handleEventSheets(subItem)
+            })
+            eventSheets.items = items
+            return eventSheets
+        },
+		// 处理rootFileFolders文件
+        handleRootFileFolders(rootFileFolders) {
+            for (let fileName in rootFileFolders) {
+                let items = []
+                rootFileFolders[fileName].items.forEach((item, index) => {
+                    let pathFolder = (fileName == 'icon' || fileName == 'sound') ? fileName + 's' : fileName
+                    let path = pathFolder + '\\' + item.name.toLowerCase()
+                    item.blob = this.globalObj[path]
+                    item.path = path
+                    items[index] = item
+                })
+                rootFileFolders[fileName].subfolders.forEach((subItem) => {
+                    this.handleRootFileFolders(subItem)
+                })
+                rootFileFolders[fileName].items = items
+            }
+            return rootFileFolders
+        },
+		// 处理object下的image文件
+        handleImage(obj) {
+            let name = obj.name
+            let animations = []
+            // console.log(obj.image, obj.animations)
+            if (obj.image) {
+                let imagePath = 'images\\' + obj.name.toLowerCase() + '.' + obj.image.exportFormat
+                obj.image.blob = this.globalObj[imagePath]
+                obj.image.path = imagePath
+            }
+            if (obj.animations) {
+                obj.animations = this.handleAnimationImage(name, obj.animations)
+            }
+            // console.log(obj)
+            return obj
+        },
+		// 处理object下的animationImage文件
+        handleAnimationImage(name, types) {
+            let items = []
+            types.items.forEach((item, index) => {
+                let arr = []
+                item.frames.forEach((imgItem, indexItem) => {
+                    let imagePath = 'images\\' + name.toLowerCase() + '-' + item.name.toLowerCase() + '-' + this._fixZero(indexItem) +'.' + imgItem.exportFormat
+                    imgItem.blob = this.globalObj[imagePath]
+                    imgItem.path = imagePath
+                    arr[indexItem] = imgItem
+                })
+                item.frames = arr
+                items[index] = item
+            })
+            types.subfolders.forEach((sbuItem) => {
+                this.handleAnimationImage(name, sbuItem)
+            })
+            types.items = items
+            return types
+        },
+		// 补0函数
+        _fixZero(num) {
+            if (num <= 9) {
+                num = '00' + num
+            } else if (num > 9 && num < 99) {
+                num = '0' + num
+            }
+            return num
+        }
+    }
+    </script>
+</body>
+
+</html>

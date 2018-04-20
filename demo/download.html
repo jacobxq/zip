@@ -1,0 +1,368 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <title>下载</title>
+    <style type="text/css">
+    .download {
+        text-decoration: none;
+        padding: 5px 10px;
+        border: 1px solid #ccc;
+        border-radius: 5px;
+        cursor: pointer;
+    }
+    </style>
+</head>
+
+<body>
+    <a class="download" id="download">导出</a>
+    <script type="text/javascript" src="../lib/zip.js"></script>
+    <script type="text/javascript" src="../lib/localforage.js"></script>
+    <script type="text/javascript">
+    zip.workerScriptsPath = "/zip/lib/";
+
+    let loaded = false
+    localforage.getItem('project').then((project) => {
+        let files = splitObject.init(project)
+        model.addFiles(files, function () {}, function (file) {
+            // console.log(file)
+        }, function (current, total) {
+            // console.log(current, total)
+        }, function () {
+            console.log('end')
+            loaded = true
+        });
+    })
+
+    let downloadBtn = document.getElementById('download')
+
+    downloadBtn.addEventListener('click', function (event) {
+        if (!loaded) {
+            console.log('还没加载完')
+            return
+        }
+        if (downloadBtn.download) return
+
+        model.getBlob(function (blob) {
+            let clickEvent;
+            clickEvent = document.createEvent("MouseEvent");
+            clickEvent.initMouseEvent("click", true, true, window, 0, 0, 0, 0, 0, false, false, false, false, 0, null);
+            downloadBtn.href = window.URL.createObjectURL(blob);
+            downloadBtn.download = 'aabb.zip';
+            downloadBtn.dispatchEvent(clickEvent);
+        });
+        event.preventDefault();
+    }, false)
+
+    // 拆分整个project结构
+    let splitObject = {
+        project: {},
+        init(project) {
+            this.project = project
+            console.log(JSON.parse(JSON.stringify(project)))
+            let eventSheets = this.getEventSheets(this.project.eventSheets)
+            let families = this.getFamilies(this.project.families)
+            let containers = this.getContainers(this.project.containers)
+            let objectTypes = this.getObjectTypes(this.project.objectTypes)
+            let layouts = this.getLayouts(this.project.layouts)
+            let rootFileFolders = this.getRootFileFolders(this.project.rootFileFolders)
+            // let sounds = {}
+            console.log(this.project)
+
+            return this._removeDuplicateObjects([{
+                name: 'project.json',
+                blob: new Blob([JSON.stringify(this.project, null, 2)])
+            }, ...eventSheets, ...families, ...containers, ...objectTypes, ...layouts, ...rootFileFolders])
+        },
+        // 处理rootFileFolders表
+        getRootFileFolders(rootFileFolders) {
+        	console.log(rootFileFolders)
+        	let obj = {}
+			let files = []
+        	for (let key in rootFileFolders) {
+        		let fileItem = rootFileFolders[key]
+        		let handle = function (fileItem) {
+        			fileItem.items.forEach((item) => {
+        				let a = {}
+        				a.name = item.path
+        				a.blob = item.blob
+						obj[item.path] = a
+	        		})
+	        		fileItem.subfolders.forEach((subItem) => {
+						handle(subItem)
+	        		})
+        		}
+        		handle(fileItem)
+        	}
+
+        	for (let key in obj) {
+                files.push(obj[key])
+            }
+
+			return files
+        },
+        // 处理layouts表
+        getLayouts(layouts) {
+            let files = []
+            let obj = {}
+            let handle = (layouts) => {
+                for (let i = 0; i < layouts.items.length; i++) {
+                    let item = layouts.items[i]
+                    let a = {}
+                    a.name = 'layouts\\' + item.name.toLowerCase() + '.json'
+                    a.blob = new Blob([JSON.stringify(item, null, 2)])
+                    obj[item.name] = a
+                    layouts.items[i] = item.name
+                }
+                layouts.subfolders.forEach((subItem) => {
+                    handle(subItem)
+                })
+            }
+            handle(layouts)
+
+            for (let key in obj) {
+                files.push(obj[key])
+            }
+
+            this.project.layouts = layouts
+
+            return files
+        },
+        // 处理objectTypes表
+        getObjectTypes(objectTypes) {
+            let files = []
+            let obj = {}
+            let handle = (objectTypes) => {
+                for (let i = 0; i < objectTypes.items.length; i++) {
+                    let item = objectTypes.items[i]
+                    let a = {}
+                    a.name = 'objectTypes\\' + item.name.toLowerCase() + '.json'
+                    a.blob = new Blob([JSON.stringify(item, null, 2)])
+                    obj[item.name] = a
+                    files = files.concat(this.getImages(item))
+                    objectTypes.items[i] = item.name
+                }
+                objectTypes.subfolders.forEach((subItem) => {
+                    handle(subItem)
+                })
+            }
+            handle(objectTypes)
+
+            for (let key in obj) {
+                files.push(obj[key])
+            }
+
+            this.project.objectTypes = objectTypes
+
+            return files
+        },
+        // 处理containers表
+        getContainers(containers) {
+            var that = this
+            let obj = {}
+            let files = []
+            containers.forEach((item, index) => {
+                // 处理members结构
+                for (let j = 0; j < item.members.length; j++) {
+                    let member = item.members[j]
+                    let b = {}
+                    b.name = 'objectTypes\\' + member.name.toLowerCase() + '.json'
+                    b.blob = new Blob([JSON.stringify(member, null, 2)])
+                    obj[member.name] = b
+
+                    files = files.concat(that.getImages(member))
+
+                    containers[index].members[j] = member.name
+                }
+            })
+
+            for (let key in obj) {
+                files.push(obj[key])
+            }
+
+            this.project.containers = containers
+
+            return files
+        },
+        // 处理families表
+        getFamilies(families) {
+            let that = this
+            let obj = {}
+            let files = []
+            let handle = function (families) {
+
+                // 处理一级families结构
+                for (let i = 0; i < families.items.length; i++) {
+                    let item = families.items[i]
+                    let a = {}
+                    a.name = 'families\\' + item.name.toLowerCase() + '.json'
+
+                    // 处理二级members结构
+                    for (let j = 0; j < item.members.length; j++) {
+                        let member = item.members[j]
+                        let b = {}
+                        b.name = 'objectTypes\\' + member.name.toLowerCase() + '.json'
+                        // console.log(item)
+                        b.blob = new Blob([JSON.stringify(member, null, 2)])
+                        obj[member.name] = b
+
+                        files = files.concat(that.getImages(member))
+
+                        families.items[i].members[j] = member.name
+                    }
+
+                    a.blob = new Blob([JSON.stringify(item, null, 2)])
+                    obj[item.name] = a
+
+                    families.items[i] = item.name
+                }
+                families.subfolders.forEach((subItem) => {
+                    handle(subItem)
+                })
+            }
+            handle(families)
+
+
+            for (let key in obj) {
+                files.push(obj[key])
+            }
+
+            this.project.families = families
+
+            return files
+        },
+        // 处理事件表
+        getEventSheets(eventSheets) {
+            let obj = {}
+            let files = []
+            let handle = function (eventSheets) {
+                for (let i = 0; i < eventSheets.items.length; i++) {
+                    let item = eventSheets.items[i]
+                    let a = {}
+                    a.name = 'eventSheets\\' + item.name.toLowerCase() + '.json'
+                    a.blob = new Blob([JSON.stringify(item, null, 2)])
+                    obj[item.name] = a
+                    eventSheets.items[i] = item.name
+                }
+                eventSheets.subfolders.forEach((subItem) => {
+                    handle(subItem)
+                })
+            }
+            handle(eventSheets)
+
+            for (let key in obj) {
+                files.push(obj[key])
+            }
+
+            this.project.eventSheets = eventSheets
+
+            return files
+        },
+        // 获取图片资源
+        getImages(obj) {
+            let imgObj = {}
+            let arr = []
+            if (obj.image) {
+                imgObj[obj.image.path] = {
+                    name: obj.image.path,
+                    blob: obj.image.blob
+                }
+            }
+            if (obj.animations) {
+                let handle = function (animations) {
+                    animations.items.forEach(function (item) {
+                        item.frames.forEach(function (frameItem) {
+                            // console.log(frameItem.blob, frameItem.path)
+                            imgObj[frameItem.path] = {
+                                name: frameItem.path,
+                                blob: frameItem.blob
+                            }
+                        })
+                    })
+                    animations.subfolders.forEach(function (subItem) {
+                        handle(subItem)
+                    })
+                }
+                handle(obj.animations)
+            }
+
+            for (let key in imgObj) {
+                arr.push(imgObj[key])
+            }
+            return arr
+        },
+        // 去除数组重复的对象
+        _removeDuplicateObjects(arr) {
+            let newArr = [];
+
+            function _objIsInArray(obj, arr) {
+                let tmpStatus = false;
+                for (let j = 0; j < arr.length; j++) {
+                    if (obj.name == arr[j].name) {
+                        return j;
+                        break;
+                    } else {
+                        tmpStatus = false;
+                    }
+                }
+                if (!tmpStatus) {
+                    return -1;
+                }
+            }
+            for (let i = 0; i < arr.length; i++) {
+                if (_objIsInArray(arr[i], newArr) == -1) {
+                    newArr.push(arr[i]);
+                } else {
+                    console.log('对象已存在');
+                }
+            }
+            return newArr
+        }
+    }
+
+
+    let model = {
+        writer: '',
+        zipWriter: '',
+        URL: window.webkitURL || window.mozURL || window.URL,
+        addFiles(files, oninit, onadd, onprogress, onend) {
+            let that = this;
+            let addIndex = 0;
+
+            function nextFile() {
+                let file = files[addIndex];
+                onadd(file);
+                // console.log(file.name)
+                that.zipWriter.add(file.name, new zip.BlobReader(file.blob), function () {
+                    addIndex++;
+                    if (addIndex < files.length)
+                        nextFile();
+                    else
+                        onend();
+                }, onprogress);
+            }
+
+            function createZipWriter() {
+                zip.createWriter(that.writer, function (writer) {
+                    that.zipWriter = writer;
+                    oninit();
+                    nextFile();
+                }, onerror);
+            }
+
+            if (this.zipWriter) {
+                nextFile();
+            } else {
+                this.writer = new zip.BlobWriter();
+                createZipWriter();
+            }
+        },
+        getBlob: function (callback) {
+            this.zipWriter.close(callback);
+        }
+    }
+    </script>
+</body>
+
+</html>

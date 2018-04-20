@@ -94,6 +94,7 @@
 		fileInput.addEventListener('change', function() {
 			fileInput.disabled = true;
 			creationMethodInput.disabled = true;
+			console.log(fileInput.files[0])
 			model.addFiles(fileInput.files, function() {
 			}, function(file) {
 				var li = document.createElement("li");
